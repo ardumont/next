@@ -13,6 +13,8 @@
 
 (defvar *key-chord-stack* ()
   "A stack that keeps track of the key chords a user has inputted")
+(defvar *key-chord-function* nil
+  "A variable that keeps track of the function associated to the key chords a user has inputted")
 
 ;; A struct used to describe a key-chord
 (defstruct key-chord
@@ -20,7 +22,7 @@
   key-string
   modifiers)
 
-(defun push-key-chord (key-code key-string modifiers)
+(defun push-key-chord (buffer-id key-code key-string modifiers)
   ;; Adds a new chord to key-sequence
   ;; For example, it may add C-M-s or C-x
   ;; to a stack which will be consumed by
@@ -32,23 +34,28 @@
                     :modifiers (when (listp modifiers)
                                  (sort modifiers #'string-lessp)))))
     (push key-chord *key-chord-stack*))
-  (if (consume-key-sequence) 1 0))
+  (if (consume-key-sequence-p buffer-id) 1 0))
 
-(defun consume-key-sequence ()
+(defun consume-key-sequence-p (buffer-id)
   ;; Iterate through all keymaps
   ;; If key recognized, execute function
   (let ((key-maps (list *global-map*
-		        (keymap (mode (active-buffer *interface*))))))
+                        (keymap (mode (gethash buffer-id (buffers *interface*)))))))
     (dolist (map key-maps)
       (when (gethash *key-chord-stack* map)
-	;; If not prefix key, consume
-	(when (not (equalp (gethash *key-chord-stack* map) "prefix"))
-	  (funcall (gethash *key-chord-stack* map))
-	  (setf *key-chord-stack* ()))
-	(return-from consume-key-sequence t)))
+        (if (equalp (gethash *key-chord-stack* map) "prefix")
+            (setf *key-chord-function* nil)
+            (setf *key-chord-function* (gethash *key-chord-stack* map)))
+        (return-from consume-key-sequence-p t)))
     ;; If we made it to this point, key did not exist, return false,
     ;; allowing the key to be consumed by other widgets
     (setf *key-chord-stack* ())))
+
+(defun consume-key-sequence ()
+  (unless (null *key-chord-function*)
+    (funcall *key-chord-function*))
+  (setf *key-chord-function* nil)
+  (setf *key-chord-stack* ()))
 
 (defun define-key (mode-map key-sequence function)
   ;; A sequence of "C-x" "C-s" "C-a" will be broken
