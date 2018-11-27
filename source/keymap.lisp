@@ -45,6 +45,7 @@
       (when (gethash *key-chord-stack* map)
         (if (equalp (gethash *key-chord-stack* map) "prefix")
             (setf *key-chord-function* nil)
+            (setf *key-chord-stack* ())
             (setf *key-chord-function* (gethash *key-chord-stack* map)))
         (return-from consume-key-sequence-p t)))
     ;; If we made it to this point, key did not exist, return false,
@@ -53,9 +54,9 @@
 
 (defun consume-key-sequence ()
   (unless (null *key-chord-function*)
-    (funcall *key-chord-function*))
-  (setf *key-chord-function* nil)
-  (setf *key-chord-stack* ()))
+    (let ((fun *key-chord-function*))
+      (setf *key-chord-function* nil)
+      (funcall fun))))
 
 (defun define-key (mode-map key-sequence function)
   ;; A sequence of "C-x" "C-s" "C-a" will be broken
